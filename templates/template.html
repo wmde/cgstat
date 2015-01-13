@@ -1,0 +1,20 @@
+<html>
+<head>
+<title> {{ title }} </title>
+</head>
+<body>
+<table>
+    <th>Graph Name</th><th>Host</th><th>Arc Count</th>
+    {% for graph in graphs %}
+        <tr>
+            <td>{{ graph.name }}</td><td>{{ graph.host }}</td><td id="arccount_{{ graph.name }}"></td>
+        </tr>
+    {% endfor %}
+</table>
+<script type="text/javascript">
+{% for script in scripts %}
+    {{ script|safe }}
+{% endfor %}
+</script>
+</body>
+</html>
