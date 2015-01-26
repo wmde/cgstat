@@ -1,12 +1,15 @@
 #!/usr/bin/python
 # -*- coding:utf-8 -*-
+import sys
 import time
+import copy
 import select
 import socket
 import resource
 import requests
 import asyncore
 import flask
+import json
 from flask import Flask
 from flup.server.fcgi import WSGIServer
 from gp import *
@@ -70,43 +73,50 @@ def gengraphstats(hostmap):
     transports= {}      # socket fileno => ClientTransport
     nofile= resource.getrlimit(resource.RLIMIT_NOFILE)
     resource.setrlimit(resource.RLIMIT_NOFILE, (nofile[1],nofile[1]))
-    error_status= { "status": { "graph": "XXXX", "content": { "arccount": "ERROR", "rss": "ERROR", "virt": "ERROR" } } }
+    error_status= { "status": { "graph": "XXXX", "content": { "arccount": "ERROR", "rss": "ERROR", "virt": "ERROR" }, "errormsg": {} } }
     for graph in hostmap:
-        transport= client.ClientTransport(str(hostmap[graph]), socktimeout=30)
+        transport= client.ClientTransport(str(hostmap[graph]), socktimeout=5)
         gp= client.Connection( transport, str(graph) )
         try:
+            stat= copy.deepcopy(error_status)
+            stat["status"]["graph"]= graph
             transport.connect()
-            reply= gp.use_graph(str(graph))
+            reply= gp.execute('use-graph %s' % str(graph))
             transport.graphname= graph
             transport.send("stats q\n")
             transports[transport.hin.fileno()]= transport
             poll.register(transport.hin.fileno(), select.POLLIN|select.POLLERR|select.POLLHUP|select.POLLNVAL|select.POLLPRI)
-            s= error_status
-            s["status"]["graph"]= graph
-            for v in s["status"]["content"]:
-                s["status"]["content"][v]= "..."
-            yield s
+            for v in stat["status"]["content"]: stat["status"]["content"][v]= "..."
+            yield stat
         except Exception as ex:
-            s= error_status
-            s["status"]["graph"]= graph
-            yield s  # XXX todo: display exception
+            stat= copy.deepcopy(error_status)
+            stat["status"]["graph"]= graph
+            for v in stat["status"]["content"]: stat["status"]["errormsg"][v]= "%s" % str(ex)
+            yield stat
 
     
     pollstart= time.time()
     while len(transports) and time.time()-pollstart<60:
         res= poll.poll(0.5)
         for row in res:
-            stat= error_status
+            stat= copy.deepcopy(error_status)
             stat["status"]["graph"]= transports[row[0]].graphname
             
             if row[1]==1:
-                for l in transports[row[0]].make_source():
-                    if l[0]=='ArcCount':
-                        stat["status"]["content"]["arccount"]= l[1]
-                    elif l[0]=='ProcVirt':
-                        stat["status"]["content"]["virt"]= l[1]
-                    elif l[0]=='ProcRSS':
-                        stat["status"]["content"]["rss"]= l[1]
+                try:
+                    line= transports[row[0]].receive()
+                    if not line or not line.startswith("OK.") or not line.strip().endswith(':'):
+                        for v in stat["status"]["content"]: stat["status"]["errormsg"][v]= "INVALID RESPONSE '%s'" % str(line).strip()
+                    else: 
+                        for l in transports[row[0]].make_source():
+                            if l[0]=='ArcCount':
+                                stat["status"]["content"]["arccount"]= l[1]
+                            elif l[0]=='ProcVirt':
+                                stat["status"]["content"]["virt"]= l[1]
+                            elif l[0]=='ProcRSS':
+                                stat["status"]["content"]["rss"]= l[1]
+                except socket.timeout:
+                    for v in stat["status"]["content"]: stat["status"]["errormsg"][v]= "TIMEOUT"
             
             yield stat
             poll.unregister(row[0])
@@ -114,24 +124,14 @@ def gengraphstats(hostmap):
             del transports[row[0]]
     
     for t in transports:
+        stat= error_status
+        stat["status"]["graph"]= transports[t].graphname
+        for v in stat["status"]["content"]: stat["status"]["errormsg"][v]= "TIMEOUT"
+        yield stat
+    
+    # ... when finished:
+    for t in transports:
         transports[t].close()
-
-
-#~ class async_reader(asyncore.dispatcher):
-    #~ def handle_read(self):
-        #~ for line in client.PipeSource(self):
-            #~ pass
-        #~ pass
-    #~ def handle_close(self):
-        #~ pass
-
-
-
-#~ def gengraphstats(hostmap):
-    #~ for graph in hostmap:
-
-    #~ pass
-
 
 # glue function for 'streaming' a template which results in chunked transfer encoding
 def stream_template(template_name, **context):
@@ -142,6 +142,9 @@ def stream_template(template_name, **context):
     return rv
 
 @app.route('/cgstat')
+#~ @app.route('/cgstat/')
+@app.route('/catgraph/cgstat')
+#~ @app.route('/catgraph/cgstat/')
 def cgstat():
     hostmapUri= "http://%s/hostmap/graphs.json" % ('localhost' if myhostname=='sampi' else 'sylvester')
     hostmap= requests.get(hostmapUri).json()
@@ -158,7 +161,11 @@ def cgstat():
 
 
 if __name__ == '__main__':
-    import cgitb
-    cgitb.enable()
+    #~ import cgitb
+    #~ cgitb.enable()
+    #~ app.config['DEBUG']= True
     app.debug= True
+    app.use_debugger= True
+    sys.stderr.write("__MAIN__\n")
     WSGIServer(app).run()
+    #~ app.run(debug=app.debug, use_debugger=app.debug)

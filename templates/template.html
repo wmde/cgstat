@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <title> {{ title }} </title>
+<script src="/catgraph/cgstat/static/sorttable.js"></script>
 <style type="text/css">
 body {
     font-family: Sans;
@@ -20,62 +21,78 @@ th.graphname {
 th.host {
     width: 5em;
 }
-th.arcs {
+th.arcs, th.rss {
     width: 5em;
+}
+th.virt {
+    width: 6em;
 }
 table {
     margin-left: auto;
     margin-right: auto;
 }
-tr {
-    background-color: #f0f0f0;
+/* Sortable tables */
+table.sortable th {
+    background: #e0e0e0;
+    font-weight: bold;
+    font-size: 11pt;
+    cursor: default;
 }
-tr.alt {
-    background-color: #e0e0e0;
+table.sortable tr:nth-child(2n) td {
+    background: #e0e0e0;
+}
+table.sortable tr:nth-child(2n+1) td {
+    background: #f0f0f0;
 }
 </style>
 </head>
-<body>
-<table>
-    <th class="graphname">Graph Name</th><th class="host">Host</th><th class="arcs">Arcs</th><th class="arcs">RSS</th><th class="arcs">Virt</th>
-    {% set i = 0 %}
+<body onload="sorttable.innerSortFunction.apply(document.getElementsByTagName('th')[0], []);">
+<table class="sortable">
+    <tr>
+        <th class="graphname">Graph Name</th><th class="host">Host</th><th class="arcs">Arcs</th><th class="rss">RSS</th><th class="virt">Virt</th>
+    </tr>
     {% for graph in graphs %}
-        {% if i is even %}
         <tr>
-        {% else %}
-        <tr class="alt">
-        {% endif %}
             <td>{{ graph.name }}</td><td>{{ graph.host }}</td>
             <td id="arccount_{{ graph.name }}"></td>
             <td id="rss_{{ graph.name }}"></td>
             <td id="virt_{{ graph.name }}"></td>
         </tr>
-    {% set i = i+1 %}
     {% endfor %}
 </table>
 <script>
-function updateRow(graphname, name, value) {
+function updateRowItem(graphname, name, value) {
     document.getElementById(name + '_' + graphname).innerHTML= value;
 };
+function updateRowItemTitle(graphname, name, value) {
+    document.getElementById(name + '_' + graphname).title= value;
+};
+function updateRow(graphname, status) {
+    for(var key in status.content) {
+        updateRowItem(graphname, key, status.content[key]);
+    }
+    for(var key in status.errormsg) {
+        updateRowItemTitle(graphname, key, status.errormsg[key]);
+    }
+};
 </script>
-{% set i = 0 %}
-<script type="text/javascript">
+<script>
 {% for u in updates %}
     {% if u.status is defined %}
-        {% for v in u.status.content %}
-            updateRow('{{ u.status.graph }}', '{{ v }}', '{{ u.status.content[v] }}');
-        {% endfor %}
+        updateRow('{{ u.status.graph }}', {{ u.status|tojson|safe }});
     {% endif %}
-    {% if i is divisibleby(3) %}
+    {% if loop.index0 is divisibleby(10) %}
 </script>
-<script type="text/javascript">
+<script>
     {% endif %}
-    {% set i = i+1 %}
 {% endfor %}
 </script>
 
+{#
 {% for script in scripts %}
 <script>{{ script|safe }}</script>
 {% endfor %}
+#}
+
 </body>
 </html>
