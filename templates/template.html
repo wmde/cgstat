@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" dir="ltr" class="client-nojs">
+<html lang="en">
 <head>
 <meta charset="UTF-8" />
 <title> {{ title }} </title>
@@ -8,6 +8,7 @@
 body {
     font-family: Sans;
     font-size: 10pt;
+    color: #000000;
 }
 td,th {
     height: 10pt;
@@ -49,7 +50,7 @@ table.sortable tr:nth-child(2n+1) td {
 <body onload="sorttable.innerSortFunction.apply(document.getElementsByTagName('th')[0], []);">
 <table class="sortable">
     <tr>
-        <th class="graphname">Graph Name</th><th class="host">Host</th><th class="arcs">Arcs</th><th class="rss">RSS</th><th class="virt">Virt</th>
+        <th class="graphname">Graph Name</th><th class="host" title="Tool Labs Host Name">Host</th><th class="arcs" title="Number of Arcs">Arcs</th><th class="rss" title="Resident Set Size in Bytes">RSS</th><th class="virt" title="Virtual Memory Size in Bytes">Virt</th>
     </tr>
     {% for graph in graphs %}
         <tr>
