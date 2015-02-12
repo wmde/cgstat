@@ -159,7 +159,7 @@ def stream_template(template_name, **context):
     return rv
 
 @app.route('/cgstat')
-@app.route('/cgstat/')
+@app.route('/')
 #~ @app.route('/catgraph/cgstat')
 #~ @app.route('/catgraph/cgstat/')
 def cgstat():
@@ -167,7 +167,7 @@ def cgstat():
     hostmap= requests.get(hostmapUri).json()
     app.jinja_env.trim_blocks= True
     app.jinja_env.lstrip_blocks= True
-    response= flask.Response(stream_template('template.html', title="cgstat", graphs=gengraphinfo(hostmap), updates=gengraphstats(hostmap), scripts=[]))
+    response= flask.Response(stream_template('template.html', title="CatGraph Status", graphs=gengraphinfo(hostmap), updates=gengraphstats(hostmap), scripts=[]))
     #~ response.headers.add("X-Foobar", "Asdf")
     #~ response.headers.add("Connection", "keep-alive")
     #~ response.headers.add("Cache-Control", "no-cache")
