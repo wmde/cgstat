@@ -159,8 +159,8 @@ def stream_template(template_name, **context):
     return rv
 
 @app.route('/cgstat')
-#~ @app.route('/cgstat/')
-@app.route('/catgraph/cgstat')
+@app.route('/cgstat/')
+#~ @app.route('/catgraph/cgstat')
 #~ @app.route('/catgraph/cgstat/')
 def cgstat():
     hostmapUri= "http://%s/hostmap/graphs.json" % ('localhost' if myhostname=='sampi' else 'sylvester')
