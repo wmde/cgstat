@@ -76,11 +76,34 @@ function updateRow(graphname, status) {
         updateRowItemTitle(graphname, key, status.errormsg[key]);
     }
 };
+
+/*!
+* Dynamically changing favicons with JavaScript
+* Works in all A-grade browsers except Safari and Internet Explorer
+* Demo: http://mathiasbynens.be/demo/dynamic-favicons
+*/
+// HTML5(TM), baby! http://mathiasbynens.be/notes/document-head
+document.head || (document.head = document.getElementsByTagName('head')[0]);
+function changeFavicon(src) {
+    var link = document.createElement('link'),
+        oldLink = document.getElementById('dynamic-favicon');
+        link.id = 'dynamic-favicon';
+        link.rel = 'shortcut icon';
+        link.href = src;
+    if (oldLink) {
+        document.head.removeChild(oldLink);
+    }
+    document.head.appendChild(link);
+};
+
 </script>
 <script>
 {% for u in updates %}
     {% if u.status is defined %}
         updateRow('{{ u.status.graph }}', {{ u.status|tojson|safe }});
+    {% endif %}
+    {% if u.favicon is defined %}
+        changeFavicon('{{ u.favicon|safe }}');
     {% endif %}
     {% if loop.index0 is divisibleby(10) %}
 </script>

@@ -91,6 +91,7 @@ def gengraphstats(hostmap):
     nofile= resource.getrlimit(resource.RLIMIT_NOFILE)
     resource.setrlimit(resource.RLIMIT_NOFILE, (nofile[1],nofile[1]))
     error_status= { "status": { "graph": "XXXX", "content": { "arccount": "ERROR", "rss": "ERROR", "virt": "ERROR" }, "errormsg": {} } }
+    erricon_set= False
     for graph in hostmap:
         transport= client.ClientTransport(str(hostmap[graph]), socktimeout=5)
         gp= client.Connection( transport, str(graph) )
@@ -110,7 +111,7 @@ def gengraphstats(hostmap):
             stat["status"]["graph"]= graph
             for v in stat["status"]["content"]: stat["status"]["errormsg"][v]= "%s" % str(ex)
             yield stat
-
+            if not erricon_set: yield { "favicon": "/cgstat/static/erricon.png" }
     
     pollstart= time.time()
     while len(transports) and time.time()-pollstart<60:
@@ -124,7 +125,8 @@ def gengraphstats(hostmap):
                     line= transports[row[0]].receive()
                     if not line or not line.startswith("OK.") or not line.strip().endswith(':'):
                         for v in stat["status"]["content"]: stat["status"]["errormsg"][v]= "INVALID RESPONSE '%s'" % str(line).strip()
-                    else: 
+                        if not erricon_set: yield { "favicon": "/cgstat/static/erricon.png" }
+                    else:
                         for l in transports[row[0]].make_source():
                             if l[0]=='ArcCount':
                                 stat["status"]["content"]["arccount"]= l[1]
@@ -134,6 +136,7 @@ def gengraphstats(hostmap):
                                 stat["status"]["content"]["rss"]= l[1]
                 except socket.timeout:
                     for v in stat["status"]["content"]: stat["status"]["errormsg"][v]= "TIMEOUT"
+                    if not erricon_set: yield { "favicon": "/cgstat/static/erricon.png" }
             
             yield stat
             poll.unregister(row[0])
@@ -145,6 +148,7 @@ def gengraphstats(hostmap):
         stat["status"]["graph"]= transports[t].graphname
         for v in stat["status"]["content"]: stat["status"]["errormsg"][v]= "TIMEOUT"
         yield stat
+        if not erricon_set: yield { "favicon": "/cgstat/static/erricon.png" }
     
     # ... when finished:
     for t in transports:
