@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import sys
-import time
+import time, datetime
 import copy
 import select
 import socket
@@ -90,7 +90,7 @@ def gengraphstats(hostmap):
     transports= {}      # socket fileno => ClientTransport
     nofile= resource.getrlimit(resource.RLIMIT_NOFILE)
     resource.setrlimit(resource.RLIMIT_NOFILE, (nofile[1],nofile[1]))
-    error_status= { "status": { "graph": "XXXX", "content": { "arccount": "ERROR", "rss": "ERROR", "virt": "ERROR" }, "errormsg": {} } }
+    error_status= { "status": { "graph": "XXXX", "content": { "arccount": "ERROR", "rss": "ERROR", "virt": "ERROR", "age": "ERROR" }, "errormsg": {} } }
     erricon_set= False
     for graph in hostmap:
         transport= client.ClientTransport(str(hostmap[graph]), socktimeout=5)
@@ -101,11 +101,12 @@ def gengraphstats(hostmap):
             transport.connect()
             reply= gp.execute('use-graph %s' % str(graph))
             transport.graphname= graph
-            transport.send("stats q\n")
             transports[transport.hin.fileno()]= transport
             poll.register(transport.hin.fileno(), select.POLLIN|select.POLLERR|select.POLLHUP|select.POLLNVAL|select.POLLPRI)
             for v in stat["status"]["content"]: stat["status"]["content"][v]= "..."
             yield stat
+            transport.send("stats q\n")
+            transport.send("list-meta\n")
         except Exception as ex:
             stat= copy.deepcopy(error_status)
             stat["status"]["graph"]= graph
@@ -121,22 +122,41 @@ def gengraphstats(hostmap):
             stat["status"]["graph"]= transports[row[0]].graphname
             
             if row[1]==1:
-                try:
-                    line= transports[row[0]].receive()
-                    if not line or not line.startswith("OK.") or not line.strip().endswith(':'):
-                        for v in stat["status"]["content"]: stat["status"]["errormsg"][v]= "INVALID RESPONSE '%s'" % str(line).strip()
+                for cmd in range(2):  # we stuffed 2 commands in there, so we have to read 2 replies
+                    try:
+                        line= transports[row[0]].receive()  # receive the first status reply
+                        if not line or not line.startswith("OK.") or not line.strip().endswith(':'):
+                            # bad status
+                            for v in stat["status"]["content"]: stat["status"]["errormsg"][v]= "INVALID RESPONSE '%s'" % str(line).strip()
+                            if not erricon_set: yield { "favicon": "/cgstat/static/erricon.png" }
+                        else:
+                            # status ok, read data set
+                            if cmd==0:  # first cmd -- 'stats q'
+                                for l in transports[row[0]].make_source():
+                                    if l[0]=='ArcCount':
+                                        stat["status"]["content"]["arccount"]= l[1]
+                                    elif l[0]=='ProcVirt':
+                                        stat["status"]["content"]["virt"]= l[1]
+                                    elif l[0]=='ProcRSS':
+                                        stat["status"]["content"]["rss"]= l[1]
+                            elif cmd==1:    # second cmd -- 'list-meta'
+                                for l in transports[row[0]].make_source():
+                                    if l[0]=='last_full_import':
+                                        now= datetime.datetime.utcnow()
+                                        lastimport= datetime.datetime.strptime(l[1], "%Y-%m-%dT%H:%M:%S")
+                                        age= now-lastimport
+                                        hours, remainder= divmod(age.seconds, 3600)
+                                        minutes, seconds= divmod(remainder, 60)
+                                        if age.days:
+                                            stat["status"]["content"]["age"]= '<div class=errage>%02d:%02d:%02d</div>' % (age.days, hours, minutes)
+                                        else:
+                                            stat["status"]["content"]["age"]= '%02d:%02d:%02d' % (age.days, hours, minutes)
+                    except socket.timeout:
+                        for v in stat["status"]["content"]: stat["status"]["errormsg"][v]= "TIMEOUT"
                         if not erricon_set: yield { "favicon": "/cgstat/static/erricon.png" }
-                    else:
-                        for l in transports[row[0]].make_source():
-                            if l[0]=='ArcCount':
-                                stat["status"]["content"]["arccount"]= l[1]
-                            elif l[0]=='ProcVirt':
-                                stat["status"]["content"]["virt"]= l[1]
-                            elif l[0]=='ProcRSS':
-                                stat["status"]["content"]["rss"]= l[1]
-                except socket.timeout:
-                    for v in stat["status"]["content"]: stat["status"]["errormsg"][v]= "TIMEOUT"
-                    if not erricon_set: yield { "favicon": "/cgstat/static/erricon.png" }
+                    except Exception as ex:
+                        for v in stat["status"]["content"]: stat["status"]["errormsg"][v]= str(ex)
+                        if not erricon_set: yield { "favicon": "/cgstat/static/erricon.png" }
             
             yield stat
             poll.unregister(row[0])

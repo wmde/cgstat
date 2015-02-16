@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<meta http-equiv="refresh" content="600"/>  <!-- XXXX todo: make configurable -->
 <meta charset="UTF-8" />
 <title> {{ title }} </title>
 <script src="/cgstat/static/sorttable.js"></script>
@@ -28,6 +29,9 @@ th.arcs, th.rss {
 th.virt {
     width: 6em;
 }
+th.age {
+    width: 6em;
+}
 table {
     margin-left: auto;
     margin-right: auto;
@@ -45,12 +49,16 @@ table.sortable tr:nth-child(2n) td {
 table.sortable tr:nth-child(2n+1) td {
     background: #f0f0f0;
 }
+.errage {
+    color: #f00;
+}
 </style>
 </head>
 <body onload="sorttable.innerSortFunction.apply(document.getElementsByTagName('th')[0], []);">
 <table class="sortable">
     <tr>
         <th class="graphname">Graph Name</th><th class="host" title="Tool Labs Host Name">Host</th><th class="arcs" title="Number of Arcs">Arcs</th><th class="rss" title="Resident Set Size in Bytes">RSS</th><th class="virt" title="Virtual Memory Size in Bytes">Virt</th>
+        <th class="age" title="Time since last update from sql (dd:hh:mm)">Age</th>
     </tr>
     {% for graph in graphs %}
         <tr>
@@ -58,6 +66,7 @@ table.sortable tr:nth-child(2n+1) td {
             <td id="arccount_{{ graph.name }}"></td>
             <td id="rss_{{ graph.name }}"></td>
             <td id="virt_{{ graph.name }}"></td>
+            <td id="age_{{ graph.name }}"></td>
         </tr>
     {% endfor %}
 </table>
@@ -87,9 +96,9 @@ document.head || (document.head = document.getElementsByTagName('head')[0]);
 function changeFavicon(src) {
     var link = document.createElement('link'),
         oldLink = document.getElementById('dynamic-favicon');
-        link.id = 'dynamic-favicon';
-        link.rel = 'shortcut icon';
-        link.href = src;
+    link.id = 'dynamic-favicon';
+    link.rel = 'shortcut icon';
+    link.href = src;
     if (oldLink) {
         document.head.removeChild(oldLink);
     }
