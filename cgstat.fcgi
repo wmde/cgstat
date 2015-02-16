@@ -149,6 +149,7 @@ def gengraphstats(hostmap):
                                         minutes, seconds= divmod(remainder, 60)
                                         if age.days:
                                             stat["status"]["content"]["age"]= '<div class=errage>%02d:%02d:%02d</div>' % (age.days, hours, minutes)
+                                            if not erricon_set: yield { "favicon": "/cgstat/static/erricon.png" }
                                         else:
                                             stat["status"]["content"]["age"]= '%02d:%02d:%02d' % (age.days, hours, minutes)
                     except socket.timeout:
