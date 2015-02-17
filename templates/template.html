@@ -91,7 +91,9 @@ function get_hash() {   // load settings from window.location.hash
     var pairs= hash.split('&');
     for(var i in pairs) {
         var kv= pairs[i].split('=');
-        hashsettings[kv[0]]= kv[1];
+        if(kv.length==2) {
+            hashsettings[kv[0]]= kv[1];
+        }
     }
 };
 function sorthdr_onclick(elem) {
