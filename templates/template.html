@@ -55,14 +55,14 @@ table.sortable tr:nth-child(2n+1) td {
 </style>
 </head>
 <body onload="onload()">
-<table class="sortable">
+<table class="sortable" id="graphtable">
     <tr>
-        <th onclick="sorthdr_onclick(this)" id="graphname">Graph Name</th>
-        <th onclick="sorthdr_onclick(this)" id="host" title="Tool Labs Host Name">Host</th>
-        <th onclick="sorthdr_onclick(this)" id="arcs" title="Number of Arcs">Arcs</th>
-        <th onclick="sorthdr_onclick(this)" id="rss" title="Resident Set Size in Bytes">RSS</th>
-        <th onclick="sorthdr_onclick(this)" id="virt" title="Virtual Memory Size in Bytes">Virt</th>
-        <th onclick="sorthdr_onclick(this)" id="age" title="Time since last update from replica (dd:hh:mm)">Age</th>
+        <th id="graphname">Graph Name</th>
+        <th id="host" title="Tool Labs Host Name">Host</th>
+        <th id="arcs" title="Number of Arcs">Arcs</th>
+        <th id="rss" title="Resident Set Size in Bytes">RSS</th>
+        <th id="virt" title="Virtual Memory Size in Bytes">Virt</th>
+        <th id="age" title="Time since last update from replica (dd:hh:mm)">Age</th>
     </tr>
     {% for graph in graphs %}
         <tr>
@@ -76,7 +76,7 @@ table.sortable tr:nth-child(2n+1) td {
 </table>
 <script>
 hashsettings= { "sortby": "graphname" };
-function set_hash() {   // apply settings to window.location.hash
+function set_hash() {   // save settings to window.location.hash
     var hash= "";
     for(var key in hashsettings) {
         if(hash.length) {
@@ -96,13 +96,27 @@ function get_hash() {   // load settings from window.location.hash
         }
     }
 };
-function sorthdr_onclick(elem) {
-    hashsettings.sortby= elem.id;
+function sorthdr_onclick(event) {
+    hashsettings.sortby= this.id;
+    if(this.className.search(/\bsorttable_sorted_reverse\b/) != -1) {
+        hashsettings.sortreverse= true;
+    } else {
+        delete hashsettings.sortreverse;
+    }
     set_hash();
 };
 function onload() {
+    var graphtable= document.getElementById("graphtable");
+    var headrow= graphtable.tHead.rows[0].cells;
+    for(var i= 0; i<headrow.length; ++i) {
+        dean_addEvent(headrow[i], "click", sorthdr_onclick);
+    }
     get_hash();
-    sorttable.innerSortFunction.apply(document.getElementById(hashsettings.sortby), []);
+    sortby_elem= document.getElementById(hashsettings.sortby);
+    sorttable.innerSortFunction.apply(sortby_elem, []);
+    if(hashsettings.sortreverse) {
+        sorttable.innerSortFunction.apply(sortby_elem, []);
+    }
 };
 function updateRowItem(graphname, name, value) {
     document.getElementById(name + '_' + graphname).innerHTML= value;
@@ -153,12 +167,6 @@ function changeFavicon(src) {
     {% endif %}
 {% endfor %}
 </script>
-
-{#
-{% for script in scripts %}
-<script>{{ script|safe }}</script>
-{% endfor %}
-#}
 
 </body>
 </html>
