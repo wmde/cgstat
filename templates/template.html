@@ -17,19 +17,19 @@ td,th {
     padding: .25em;
     padding-right: .5em;
 }
-th.graphname {
+#graphname {
     width: 10em;
 }
-th.host {
+#host {
     width: 5em;
 }
-th.arcs, th.rss {
+#arcs, #rss {
     width: 5em;
 }
-th.virt {
+#virt {
     width: 6em;
 }
-th.age {
+#age {
     width: 6em;
 }
 table {
@@ -54,11 +54,15 @@ table.sortable tr:nth-child(2n+1) td {
 }
 </style>
 </head>
-<body onload="sorttable.innerSortFunction.apply(document.getElementsByTagName('th')[0], []);">
+<body onload="onload()">
 <table class="sortable">
     <tr>
-        <th class="graphname">Graph Name</th><th class="host" title="Tool Labs Host Name">Host</th><th class="arcs" title="Number of Arcs">Arcs</th><th class="rss" title="Resident Set Size in Bytes">RSS</th><th class="virt" title="Virtual Memory Size in Bytes">Virt</th>
-        <th class="age" title="Time since last update from replica (dd:hh:mm)">Age</th>
+        <th onclick="sorthdr_onclick(this)" id="graphname">Graph Name</th>
+        <th onclick="sorthdr_onclick(this)" id="host" title="Tool Labs Host Name">Host</th>
+        <th onclick="sorthdr_onclick(this)" id="arcs" title="Number of Arcs">Arcs</th>
+        <th onclick="sorthdr_onclick(this)" id="rss" title="Resident Set Size in Bytes">RSS</th>
+        <th onclick="sorthdr_onclick(this)" id="virt" title="Virtual Memory Size in Bytes">Virt</th>
+        <th onclick="sorthdr_onclick(this)" id="age" title="Time since last update from replica (dd:hh:mm)">Age</th>
     </tr>
     {% for graph in graphs %}
         <tr>
@@ -71,6 +75,33 @@ table.sortable tr:nth-child(2n+1) td {
     {% endfor %}
 </table>
 <script>
+hashsettings= { "sortby": "graphname" };
+function set_hash() {   // apply settings to window.location.hash
+    var hash= "";
+    for(var key in hashsettings) {
+        if(hash.length) {
+            hash+= "&";
+        }
+        hash+= key + '=' + hashsettings[key];
+    }
+    window.location.hash= hash;
+};
+function get_hash() {   // load settings from window.location.hash
+    var hash= window.location.hash.substring(1);
+    var pairs= hash.split('&');
+    for(var i in pairs) {
+        var kv= pairs[i].split('=');
+        hashsettings[kv[0]]= kv[1];
+    }
+};
+function sorthdr_onclick(elem) {
+    hashsettings.sortby= elem.id;
+    set_hash();
+};
+function onload() {
+    get_hash();
+    sorttable.innerSortFunction.apply(document.getElementById(hashsettings.sortby), []);
+};
 function updateRowItem(graphname, name, value) {
     document.getElementById(name + '_' + graphname).innerHTML= value;
 };
