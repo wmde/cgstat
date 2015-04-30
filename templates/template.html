@@ -5,11 +5,15 @@
 <meta charset="UTF-8" />
 <title> {{ title }} </title>
 <script src="/cgstat/static/sorttable.js"></script>
+<link rel="stylesheet" href="//tools-static.wmflabs.org/static/bootstrap/3.2.0/css/bootstrap.min.css">
+<!-- jQuery (necessary for Bootstrap's JavaScript plugins) -->
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script><script src="//tools-static.wmflabs.org/static/bootstrap/3.2.0/js/bootstrap.min.js"></script>
 <style type="text/css">
 body {
     font-family: Sans;
     font-size: 10pt;
     color: #000000;
+    background: #ffffff;
 }
 td,th {
     height: 10pt;
@@ -38,24 +42,68 @@ table {
 }
 /* Sortable tables */
 table.sortable th {
-    background: #e0e0e0;
+    /* background: #e0e0e0; */
     font-weight: bold;
     font-size: 11pt;
     cursor: default;
 }
+/*
 table.sortable tr:nth-child(2n) td {
     background: #e0e0e0;
 }
 table.sortable tr:nth-child(2n+1) td {
     background: #f0f0f0;
 }
+*/
 .errage {
     color: #f00;
+}
+.content {
+    width: 75%;
+    margin-left: auto;
+    margin-right: auto;
 }
 </style>
 </head>
 <body onload="onload()">
-<table class="sortable" id="graphtable">
+
+<nav class="navbar navbar-default">
+  <div class="container-fluid">
+    <!-- Brand and toggle get grouped for better mobile display -->
+      <a class="navbar-brand" href="#">CatGraph Status</a>
+
+      <ul class="nav navbar-nav navbar-right">
+        <li><a href="#"><span class="glyphicon glyphicon-info-sign" data-toggle="modal" data-target="#myModal" aria-hidden="true"></span></a></li>
+      </ul>
+  </div><!-- /.container-fluid -->
+</nav>
+
+<!-- Modal -->
+<div class="modal fade" id="myModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+        <h4 class="modal-title" id="myModalLabel">CatGraph Status</h4>
+      </div>
+      <div class="modal-body">
+        <a href="https://wikitech.wikimedia.org/wiki/Nova_Resource:Catgraph/Documentation">CatGraph</a> is a simple in-memory graph database for Wikipedia categories. 
+        CatGraph-based tools exist to run
+        <a href="http://tools.wmflabs.org/render/stools/alg?submit=true&flaws=Cat_All&query=Physics&lang=en&querydepth=3&format=json&i18n=en&action=query&chunked=true">recursive category searches</a> with filtering and
+        <a href="http://tools.wmflabs.org/render/stools/alg?submit=true&flaws=ALL&query=Biologie%3B+%2BPerson&lang=de&querydepth=4&format=json&i18n=en&action=query&chunked=true">intersections</a> or to
+        find <a href="http://tools.wmflabs.org/render-tests/catcycle-dev/catcycle.py?action=find-cycles&lang=en&parentcat=Philosophy&targetcat=&depth=9999">cycles</a> in category graphs. 
+        A <a href="https://github.com/wmde/DeepCat-Gadget">gadget</a> to enable recursive category searches in CirrusSearch is under development.
+        This page is an administrative tool which shows some information about available graphs. Hover over table headers for row descriptions, click to sort. 
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="content">
+<table class="sortable table table-bordered table-striped table-condensed table-hover" id="graphtable">
     <tr>
         <th id="graphname">Graph Name</th>
         <th id="host" title="Tool Labs Host Name">Host</th>
@@ -74,6 +122,7 @@ table.sortable tr:nth-child(2n+1) td {
         </tr>
     {% endfor %}
 </table>
+</div>
 <script>
 hashsettings= { "sortby": "graphname" };
 function set_hash() {   // save settings to window.location.hash
@@ -99,9 +148,9 @@ function get_hash() {   // load settings from window.location.hash
 function sorthdr_onclick(event) {
     hashsettings.sortby= this.id;
     if(this.className.search(/\bsorttable_sorted_reverse\b/) != -1) {
-        hashsettings.sortreverse= true;
+        hashsettings.sortrev= true;
     } else {
-        delete hashsettings.sortreverse;
+        delete hashsettings.sortrev;
     }
     set_hash();
 };
@@ -114,7 +163,7 @@ function onload() {
     get_hash();
     sortby_elem= document.getElementById(hashsettings.sortby);
     sorttable.innerSortFunction.apply(sortby_elem, []);
-    if(hashsettings.sortreverse) {
+    if(hashsettings.sortrev) {
         sorttable.innerSortFunction.apply(sortby_elem, []);
     }
 };

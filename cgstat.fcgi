@@ -31,6 +31,8 @@ from flask import Flask
 from flup.server.fcgi import WSGIServer
 from gp import *
 
+sys.stderr.write("PRE __MAIN__\n")
+
 app= Flask(__name__)
 myhostname= socket.gethostname()
 
@@ -188,7 +190,7 @@ def stream_template(template_name, **context):
 #~ @app.route('/catgraph/cgstat')
 #~ @app.route('/catgraph/cgstat/')
 def cgstat():
-    hostmapUri= "http://%s/hostmap/graphs.json" % ('localhost' if myhostname=='sampi' else 'sylvester')
+    hostmapUri= "http://%s/hostmap/graphs.json" % ('localhost' if myhostname=='C086' else 'sylvester')
     hostmap= requests.get(hostmapUri).json()
     app.jinja_env.trim_blocks= True
     app.jinja_env.lstrip_blocks= True
@@ -203,9 +205,9 @@ def cgstat():
 
 
 if __name__ == '__main__':
-    #~ import cgitb
-    #~ cgitb.enable()
-    #~ app.config['DEBUG']= True
+    import cgitb
+    cgitb.enable()
+    app.config['DEBUG']= True
     app.debug= True
     app.use_debugger= True
     sys.stderr.write("__MAIN__\n")
