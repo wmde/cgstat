@@ -27,7 +27,7 @@ import requests
 import asyncore
 import flask
 import json
-from flask import Flask
+from flask import Flask, request
 from flup.server.fcgi import WSGIServer
 from gp import *
 
@@ -216,6 +216,72 @@ def gengraphstats2(hostmap):
         conn.close()
 
 
+from multiprocessing.dummy import Pool as ThreadPool
+from multiprocessing import Queue
+import threading
+def gengraphstats3(hostmap):
+    jobq= Queue()
+    for graph in hostmap:
+        jobq.put( (graph, hostmap[graph]) )
+    
+    resultq= Queue()
+    
+    def processjobs():
+        erricon_set= False
+        connections= { }
+        #~ for job in jobq:
+        while not jobq.empty():
+            job= jobq.get()
+            
+            graph= job[0]
+            host= job[1]
+            
+            if not host in connections:
+                connections[host]= client.Connection(client.ClientTransport(host))
+                connections[host].connect()
+            
+            connections[host].use_graph(str(graph))
+            
+            stat= { "status": { "graph": graph, "content": { "arccount": "ERROR", "rss": "ERROR", "virt": "ERROR", "age": "ERROR" }, "errormsg": {} } }
+            stats= connections[host].capture_stats("q")
+            for row in stats:
+                if row[0]=='ArcCount':
+                    stat["status"]["content"]["arccount"]= row[1]
+                elif row[0]=='ProcVirt':
+                    stat["status"]["content"]["virt"]= row[1]
+                elif row[0]=='ProcRSS':
+                    stat["status"]["content"]["rss"]= row[1]
+            meta= connections[host].capture_list_meta()
+            for row in meta:
+                if row[0]=='last_full_import':
+                    now= datetime.datetime.utcnow()
+                    lastimport= datetime.datetime.strptime(row[1], "%Y-%m-%dT%H:%M:%S")
+                    age= now-lastimport
+                    hours, remainder= divmod(age.seconds, 3600)
+                    minutes, seconds= divmod(remainder, 60)
+                    if age.days:
+                        stat["status"]["content"]["age"]= '<div class=errage>%02d:%02d:%02d</div>' % (age.days, hours, minutes)
+                        if not erricon_set: resultq.put( { "favicon": "/cgstat/static/erricon.png" } )
+                    else:
+                        stat["status"]["content"]["age"]= '%02d:%02d:%02d' % (age.days, hours, minutes)
+            
+            resultq.put(stat)
+    
+    threads= []
+    for i in range(30):
+        t= threading.Thread(target= processjobs)
+        t.start()
+        threads.append(t)
+    
+    def workers_alive():
+        for t in threads:
+            if t.is_alive(): return True
+        return False
+    
+    while not resultq.empty() or workers_alive():
+        yield resultq.get()
+    
+
 # glue function for 'streaming' a template which results in chunked transfer encoding
 def stream_template(template_name, **context):
     app.update_template_context(context)
@@ -233,12 +299,11 @@ def cgstat():
     hostmap= requests.get(hostmapUri).json()
     app.jinja_env.trim_blocks= True
     app.jinja_env.lstrip_blocks= True
-    response= flask.Response(stream_template('template.html', title="CatGraph Status", graphs=gengraphinfo(hostmap), updates=gengraphstats2(hostmap), scripts=[]))
-    #~ response.headers.add("X-Foobar", "Asdf")
-    #~ response.headers.add("Connection", "keep-alive")
-    #~ response.headers.add("Cache-Control", "no-cache")
-    #~ response.headers.add("Cache-Control", "no-store")
-    #~ response.headers.add("Cache-Control", "private")
+    if request.args.get("sta", False)!=False:
+        genstatsfn= gengraphstats3
+    else:
+        genstatsfn= gengraphstats
+    response= flask.Response(stream_template('template.html', title="CatGraph Status", graphs=gengraphinfo(hostmap), updates=genstatsfn(hostmap), scripts=[]))
     response.headers.add("Content-Encoding", "identity")
     return response
 
