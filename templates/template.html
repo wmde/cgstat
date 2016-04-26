@@ -210,7 +210,7 @@ function changeFavicon(src) {
     {% if u.favicon is defined %}
         changeFavicon('{{ u.favicon|safe }}');
     {% endif %}
-    {% if loop.index0 is divisibleby(10) %}
+    {% if loop.index0 is divisibleby(10) %}     <!-- trigger executing script block every 10 graphs -->
 </script>
 <script>
     {% endif %}

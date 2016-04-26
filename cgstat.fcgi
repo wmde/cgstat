@@ -31,8 +31,6 @@ from flask import Flask
 from flup.server.fcgi import WSGIServer
 from gp import *
 
-sys.stderr.write("PRE __MAIN__\n")
-
 app= Flask(__name__)
 myhostname= socket.gethostname()
 
@@ -177,6 +175,47 @@ def gengraphstats(hostmap):
     for t in transports:
         transports[t].close()
 
+
+def gengraphstats2(hostmap):
+    graphsbyhost= {}
+    for graph in hostmap:
+        if not hostmap[graph] in graphsbyhost:
+            graphsbyhost[hostmap[graph]]= [graph]
+        else:
+            graphsbyhost[hostmap[graph]].append(graph)
+
+    erricon_set= False
+    for host in graphsbyhost:
+        conn= client.Connection(client.ClientTransport(host))
+        conn.connect()
+        for graph in graphsbyhost[host]:
+            stat= { "status": { "graph": graph, "content": { "arccount": "ERROR", "rss": "ERROR", "virt": "ERROR", "age": "ERROR" }, "errormsg": {} } }
+            conn.use_graph(str(graph))
+            stats= conn.capture_stats("q")
+            for row in stats:
+                if row[0]=='ArcCount':
+                    stat["status"]["content"]["arccount"]= row[1]
+                elif row[0]=='ProcVirt':
+                    stat["status"]["content"]["virt"]= row[1]
+                elif row[0]=='ProcRSS':
+                    stat["status"]["content"]["rss"]= row[1]
+            meta= conn.capture_list_meta()
+            for row in meta:
+                if row[0]=='last_full_import':
+                    now= datetime.datetime.utcnow()
+                    lastimport= datetime.datetime.strptime(row[1], "%Y-%m-%dT%H:%M:%S")
+                    age= now-lastimport
+                    hours, remainder= divmod(age.seconds, 3600)
+                    minutes, seconds= divmod(remainder, 60)
+                    if age.days:
+                        stat["status"]["content"]["age"]= '<div class=errage>%02d:%02d:%02d</div>' % (age.days, hours, minutes)
+                        if not erricon_set: yield { "favicon": "/cgstat/static/erricon.png" }
+                    else:
+                        stat["status"]["content"]["age"]= '%02d:%02d:%02d' % (age.days, hours, minutes)
+            yield stat
+        conn.close()
+
+
 # glue function for 'streaming' a template which results in chunked transfer encoding
 def stream_template(template_name, **context):
     app.update_template_context(context)
@@ -194,7 +233,7 @@ def cgstat():
     hostmap= requests.get(hostmapUri).json()
     app.jinja_env.trim_blocks= True
     app.jinja_env.lstrip_blocks= True
-    response= flask.Response(stream_template('template.html', title="CatGraph Status", graphs=gengraphinfo(hostmap), updates=gengraphstats(hostmap), scripts=[]))
+    response= flask.Response(stream_template('template.html', title="CatGraph Status", graphs=gengraphinfo(hostmap), updates=gengraphstats2(hostmap), scripts=[]))
     #~ response.headers.add("X-Foobar", "Asdf")
     #~ response.headers.add("Connection", "keep-alive")
     #~ response.headers.add("Cache-Control", "no-cache")
