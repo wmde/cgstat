@@ -112,7 +112,9 @@ def gengraphstats(hostmap):
             stat["status"]["graph"]= graph
             for v in stat["status"]["content"]: stat["status"]["errormsg"][v]= "%s" % str(ex)
             yield stat
-            if not erricon_set: yield { "favicon": "/cgstat/static/erricon.png" }
+            if not erricon_set: 
+                yield { "favicon": "/cgstat/static/erricon.png" }
+                erricon_set= True
     
     pollstart= time.time()
     while len(transports) and time.time()-pollstart<60:
@@ -229,7 +231,6 @@ def gengraphstats3(hostmap):
     def processjobs():
         erricon_set= False
         connections= { }
-        #~ for job in jobq:
         while not jobq.empty():
             job= jobq.get()
             
@@ -261,14 +262,16 @@ def gengraphstats3(hostmap):
                     minutes, seconds= divmod(remainder, 60)
                     if age.days:
                         stat["status"]["content"]["age"]= '<div class=errage>%02d:%02d:%02d</div>' % (age.days, hours, minutes)
-                        if not erricon_set: resultq.put( { "favicon": "/cgstat/static/erricon.png" } )
+                        if not erricon_set: 
+                            resultq.put( { "favicon": "/cgstat/static/erricon.png" } )
+                            erricon_set= True
                     else:
                         stat["status"]["content"]["age"]= '%02d:%02d:%02d' % (age.days, hours, minutes)
             
             resultq.put(stat)
     
     threads= []
-    for i in range(30):
+    for i in range(10):
         t= threading.Thread(target= processjobs)
         t.start()
         threads.append(t)
@@ -278,7 +281,7 @@ def gengraphstats3(hostmap):
             if t.is_alive(): return True
         return False
     
-    while not resultq.empty() or workers_alive():
+    while (not resultq.empty()) or workers_alive():
         yield resultq.get()
     
 
@@ -292,8 +295,6 @@ def stream_template(template_name, **context):
 
 @app.route('/cgstat')
 @app.route('/')
-#~ @app.route('/catgraph/cgstat')
-#~ @app.route('/catgraph/cgstat/')
 def cgstat():
     hostmapUri= "http://%s/hostmap/graphs.json" % ('localhost' if myhostname=='C086' else 'sylvester')
     hostmap= requests.get(hostmapUri).json()
@@ -311,9 +312,9 @@ def cgstat():
 if __name__ == '__main__':
     import cgitb
     cgitb.enable()
-    app.config['DEBUG']= True
-    app.debug= True
-    app.use_debugger= True
-    sys.stderr.write("__MAIN__\n")
+    #~ app.config['DEBUG']= True
+    #~ app.debug= True
+    #~ app.use_debugger= True
+    #~ sys.stderr.write("__MAIN__\n")
     WSGIServer(app).run()
     #~ app.run(debug=app.debug, use_debugger=app.debug)
