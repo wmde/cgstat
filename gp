@@ -1,1 +1,1 @@
-gpClient/python/gp
+gpClient/gp/
