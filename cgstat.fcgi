@@ -130,7 +130,9 @@ def gengraphstats(hostmap):
                         if not line or not line.startswith("OK.") or not line.strip().endswith(':'):
                             # bad status
                             for v in stat["status"]["content"]: stat["status"]["errormsg"][v]= "INVALID RESPONSE '%s'" % str(line).strip()
-                            if not erricon_set: yield { "favicon": "/cgstat/static/erricon.png" }
+                            if not erricon_set: 
+                                yield { "favicon": "/cgstat/static/erricon.png" }
+                                erricon_set= True
                         else:
                             # status ok, read data set
                             if cmd==0:  # first cmd -- 'stats q'
@@ -151,15 +153,21 @@ def gengraphstats(hostmap):
                                         minutes, seconds= divmod(remainder, 60)
                                         if age.days:
                                             stat["status"]["content"]["age"]= '<div class=errage>%02d:%02d:%02d</div>' % (age.days, hours, minutes)
-                                            if not erricon_set: yield { "favicon": "/cgstat/static/erricon.png" }
+                                            if not erricon_set: 
+                                                yield { "favicon": "/cgstat/static/erricon.png" }
+                                                erricon_set= True
                                         else:
                                             stat["status"]["content"]["age"]= '%02d:%02d:%02d' % (age.days, hours, minutes)
                     except socket.timeout:
                         for v in stat["status"]["content"]: stat["status"]["errormsg"][v]= "TIMEOUT"
-                        if not erricon_set: yield { "favicon": "/cgstat/static/erricon.png" }
+                        if not erricon_set: 
+                            yield { "favicon": "/cgstat/static/erricon.png" }
+                            erricon_set= True
                     except Exception as ex:
                         for v in stat["status"]["content"]: stat["status"]["errormsg"][v]= str(ex)
-                        if not erricon_set: yield { "favicon": "/cgstat/static/erricon.png" }
+                        if not erricon_set: 
+                            yield { "favicon": "/cgstat/static/erricon.png" }
+                            erricon_set= True
             
             yield stat
             poll.unregister(row[0])
@@ -171,7 +179,9 @@ def gengraphstats(hostmap):
         stat["status"]["graph"]= transports[t].graphname
         for v in stat["status"]["content"]: stat["status"]["errormsg"][v]= "TIMEOUT"
         yield stat
-        if not erricon_set: yield { "favicon": "/cgstat/static/erricon.png" }
+        if not erricon_set: 
+            yield { "favicon": "/cgstat/static/erricon.png" }
+            erricon_set= True
     
     # ... when finished:
     for t in transports:
@@ -211,7 +221,9 @@ def gengraphstats2(hostmap):
                     minutes, seconds= divmod(remainder, 60)
                     if age.days:
                         stat["status"]["content"]["age"]= '<div class=errage>%02d:%02d:%02d</div>' % (age.days, hours, minutes)
-                        if not erricon_set: yield { "favicon": "/cgstat/static/erricon.png" }
+                        if not erricon_set: 
+                            yield { "favicon": "/cgstat/static/erricon.png" }
+                            erricon_set= True
                     else:
                         stat["status"]["content"]["age"]= '%02d:%02d:%02d' % (age.days, hours, minutes)
             yield stat
@@ -283,14 +295,117 @@ def gengraphstats3(hostmap):
     
     while (not resultq.empty()) or workers_alive():
         yield resultq.get()
-    
+
+# todo: exception handling
+def gengraphstats_stuffcmds(hostmap):
+    graphsbyhost= {}
+    for graph in hostmap:
+        if not hostmap[graph] in graphsbyhost:
+            graphsbyhost[hostmap[graph]]= [graph]
+        else:
+            graphsbyhost[hostmap[graph]].append(graph)
+
+    erricon_set= False
+    for host in graphsbyhost:
+        sock= socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect((host, 6666))
+        sock.settimeout(30)
+        
+        hin= sock.makefile("r")
+        hout= sock.makefile("w")
+        
+        # returns tuple: (status (bool), statusline, dataset or None)
+        def readreply():
+            # get status line
+            reply= hin.readline().strip()
+            
+            # error or failure occured
+            if not (reply.startswith("OK") or reply.startswith("VALUE")):
+                return (False, reply, None)
+            
+            # no error, no dataset
+            if not reply.endswith(':'): 
+                return (True, reply, None)
+            
+            # no error, reply with data set
+            dataset= []
+            while True:
+                line= hin.readline().strip()
+                if line=='': break
+                dataset.append( line.split(',') )
+            return (True, reply, dataset)
+                
+
+        for graph in graphsbyhost[host]:
+            hout.write("use-graph %s\n" % graph)
+            hout.write("stats q\n");
+            hout.write("list-meta\n");        
+        hout.flush()
+
+        for graph in graphsbyhost[host]:
+            ret= { "status": { "graph": graph, "content": { "arccount": "ERROR", "rss": "ERROR", "virt": "ERROR", "age": "ERROR" }, "errormsg": {} } }
+            # xxx todo... could shorten this:
+            #status= { "graph": graph, "host": host, "arccount": "ERROR", "rss": "ERROR", "virt": "ERROR", "age": "ERROR", "errormsg": {} }
+            
+            # need to read all replies first
+            reply_usegraph= readreply()
+            reply_stats= readreply()
+            reply_meta= readreply()
+            
+            # check status
+            for reply in (reply_usegraph, reply_stats, reply_meta):
+                if not reply[0]:
+                    ret["status"]["errormsg"]= reply[1]
+                    yield ret
+                    continue
+
+            # get stat values
+            for retkey,key in ( ("arccount", "ArcCount"), ("rss", "ProcRSS"), ("virt", "ProcVirt") ):
+                if not reply_stats[2]:
+                    ret["status"]["errormsg"]= reply_stats[1]
+                    yield ret
+                    continue
+                d= dict(reply_stats[2])
+                if key in d:
+                    ret["status"]["content"][retkey]= d[key]
+                else:
+                    ret["status"]["errormsg"]= reply_stats[1]
+                    yield ret
+                    continue
+            
+            # get age
+            if (not reply_meta[0]) or (not reply_meta[2]) or (not "last_full_import" in dict(reply_meta[2])):
+                ret["status"]["errormsg"]= reply_meta[1]
+                yield ret
+                continue
+                
+            lastimport_str= dict(reply_meta[2])["last_full_import"]
+            now= datetime.datetime.utcnow()
+            lastimport= datetime.datetime.strptime(lastimport_str, "%Y-%m-%dT%H:%M:%S")
+            age= now-lastimport
+            hours, remainder= divmod(age.seconds, 3600)
+            minutes, seconds= divmod(remainder, 60)
+            if age.days:
+                ret["status"]["content"]["age"]= '<div class=errage>%02d:%02d:%02d</div>' % (age.days, hours, minutes)
+                if not erricon_set: 
+                    yield { "favicon": "/cgstat/static/erricon.png" }
+                    erricon_set= True
+            else:
+                ret["status"]["content"]["age"]= '%02d:%02d:%02d' % (age.days, hours, minutes)
+            
+            yield ret
+            
+        hin.close()
+        hout.close()
+        sock.close()
+
 
 # glue function for 'streaming' a template which results in chunked transfer encoding
 def stream_template(template_name, **context):
     app.update_template_context(context)
     t = app.jinja_env.get_template(template_name)
     rv = t.stream(context)
-    #~ rv.enable_buffering(50)
+    rv.enable_buffering(25)
     return rv
 
 @app.route('/cgstat')
@@ -301,7 +416,7 @@ def cgstat():
     app.jinja_env.trim_blocks= True
     app.jinja_env.lstrip_blocks= True
     if request.args.get("sta", False)!=False:
-        genstatsfn= gengraphstats3
+        genstatsfn= gengraphstats_stuffcmds
     else:
         genstatsfn= gengraphstats
     response= flask.Response(stream_template('template.html', title="CatGraph Status", graphs=gengraphinfo(hostmap), updates=genstatsfn(hostmap), scripts=[]))
@@ -312,9 +427,9 @@ def cgstat():
 if __name__ == '__main__':
     import cgitb
     cgitb.enable()
-    #~ app.config['DEBUG']= True
-    #~ app.debug= True
-    #~ app.use_debugger= True
+    app.config['DEBUG']= True
+    app.debug= True
+    app.use_debugger= True
     #~ sys.stderr.write("__MAIN__\n")
     WSGIServer(app).run()
     #~ app.run(debug=app.debug, use_debugger=app.debug)
