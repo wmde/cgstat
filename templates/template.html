@@ -114,7 +114,7 @@ table.sortable tr:nth-child(2n+1) td {
     </tr>
     {% for graph in graphs %}
         <tr>
-            <td>{{ graph.name }}</td><td>{{ graph.host }}</td>
+            <td>{{ graph.name }}</td><td id="host_{{ graph.name }}">{{ graph.host }}</td>
             <td id="arccount_{{ graph.name }}"></td>
             <td id="rss_{{ graph.name }}"></td>
             <td id="virt_{{ graph.name }}"></td>
