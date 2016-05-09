@@ -296,14 +296,15 @@ def gengraphstats3(hostmap):
     while (not resultq.empty()) or workers_alive():
         yield resultq.get()
 
-# todo: exception handling
-def gengraphstats_stuffcmds(hostmap):
+def mkgraphstats_stuffcmds(hostmap):
     graphsbyhost= {}
     for graph in hostmap:
         if not hostmap[graph] in graphsbyhost:
             graphsbyhost[hostmap[graph]]= [graph]
         else:
             graphsbyhost[hostmap[graph]].append(graph)
+    
+    graphstats= []
 
     erricon_set= False
     for host in graphsbyhost:
@@ -356,27 +357,27 @@ def gengraphstats_stuffcmds(hostmap):
             for reply in (reply_usegraph, reply_stats, reply_meta):
                 if not reply[0]:
                     ret["status"]["errormsg"]= reply[1]
-                    yield ret
+                    graphstats.append(ret)
                     continue
 
             # get stat values
             for retkey,key in ( ("arccount", "ArcCount"), ("rss", "ProcRSS"), ("virt", "ProcVirt") ):
                 if not reply_stats[2]:
                     ret["status"]["errormsg"]= reply_stats[1]
-                    yield ret
+                    graphstats.append(ret)
                     continue
                 d= dict(reply_stats[2])
                 if key in d:
                     ret["status"]["content"][retkey]= d[key]
                 else:
                     ret["status"]["errormsg"]= reply_stats[1]
-                    yield ret
+                    graphstats.append(ret)
                     continue
             
             # get age
             if (not reply_meta[0]) or (not reply_meta[2]) or (not "last_full_import" in dict(reply_meta[2])):
                 ret["status"]["errormsg"]= reply_meta[1]
-                yield ret
+                graphstats.append(ret)
                 continue
                 
             lastimport_str= dict(reply_meta[2])["last_full_import"]
@@ -388,16 +389,20 @@ def gengraphstats_stuffcmds(hostmap):
             if age.days:
                 ret["status"]["content"]["age"]= '<div class=errage>%02d:%02d:%02d</div>' % (age.days, hours, minutes)
                 if not erricon_set: 
-                    yield { "favicon": "/cgstat/static/erricon.png" }
+                    graphstats.append( { "favicon": "/cgstat/static/erricon.png" } ) # yield { "favicon": "/cgstat/static/erricon.png" }
                     erricon_set= True
             else:
                 ret["status"]["content"]["age"]= '%02d:%02d:%02d' % (age.days, hours, minutes)
             
-            yield ret
+            graphstats.append(ret)
             
         hin.close()
         hout.close()
         sock.close()
+    
+    with open("/tmp/fuckfuckfuck", "w") as f:
+        f.write(str(graphstats))
+    return graphstats
 
 
 # glue function for 'streaming' a template which results in chunked transfer encoding
@@ -415,11 +420,8 @@ def cgstat():
     hostmap= requests.get(hostmapUri).json()
     app.jinja_env.trim_blocks= True
     app.jinja_env.lstrip_blocks= True
-    if request.args.get("sta", False)!=False:
-        genstatsfn= gengraphstats_stuffcmds
-    else:
-        genstatsfn= gengraphstats
-    response= flask.Response(stream_template('template.html', title="CatGraph Status", graphs=gengraphinfo(hostmap), updates=genstatsfn(hostmap), scripts=[]))
+    #~ response= flask.Response(stream_template('template.html', title="CatGraph Status", graphs=gengraphinfo(hostmap), updates=gengraphstats(hostmap), scripts=[]))
+    response= flask.Response( flask.render_template('template.html', title="CatGraph Status", graphs=gengraphinfo(hostmap), updates=mkgraphstats_stuffcmds(hostmap), scripts=[]) )
     response.headers.add("Content-Encoding", "identity")
     return response
 
@@ -428,8 +430,8 @@ if __name__ == '__main__':
     import cgitb
     cgitb.enable()
     app.config['DEBUG']= True
+    #~ app.config['PROPAGATE_EXCEPTIONS']= None
     app.debug= True
     app.use_debugger= True
-    #~ sys.stderr.write("__MAIN__\n")
     WSGIServer(app).run()
     #~ app.run(debug=app.debug, use_debugger=app.debug)
